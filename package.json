@@ -1,0 +1,188 @@
+{
+  "name": "eng-metrics-copilot",
+  "displayName": "Engineering Metrics - Copilot Chat",
+  "description": "A GitHub Copilot Chat participant for engineering metrics (PR cycle time, review throughput, deployment frequency, Jira sprint cycle time)",
+  "version": "0.1.0",
+  "publisher": "sentinel",
+  "engines": {
+    "vscode": "^1.100.0"
+  },
+  "categories": [
+    "AI",
+    "Chat"
+  ],
+  "activationEvents": [],
+  "main": "./out/main.js",
+  "contributes": {
+    "chatParticipants": [
+      {
+        "id": "eng-metrics.metrics",
+        "fullName": "Engineering Metrics",
+        "name": "metrics",
+        "description": "Ask about engineering metrics: PR cycle time, review throughput, deployment frequency, Jira sprint cycle time, and more.",
+        "isSticky": true,
+        "commands": [
+          {
+            "name": "prCycleTime",
+            "description": "Get PR cycle time metrics for a repository"
+          },
+          {
+            "name": "reviewThroughput",
+            "description": "Get code review throughput metrics"
+          },
+          {
+            "name": "deployFrequency",
+            "description": "Get deployment frequency metrics"
+          }
+        ]
+      }
+    ],
+    "languageModelTools": [
+      {
+        "name": "eng-metrics_getPRStats",
+        "tags": [
+          "eng-metrics"
+        ],
+        "displayName": "Get PR Statistics",
+        "modelDescription": "Retrieves pull request statistics (open, merged, avg cycle time) for a given GitHub repository. Input: { owner: string, repo: string }",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "owner": {
+              "type": "string",
+              "description": "The GitHub repository owner"
+            },
+            "repo": {
+              "type": "string",
+              "description": "The GitHub repository name"
+            }
+          },
+          "required": [
+            "owner",
+            "repo"
+          ]
+        }
+      },
+      {
+        "name": "eng-metrics_getSprintCycleTime",
+        "tags": [
+          "eng-metrics"
+        ],
+        "displayName": "Get Jira Sprint Cycle Time",
+        "modelDescription": "Retrieves sprint cycle time metrics from Jira. Calculates how long stories take from 'In Progress' to 'Done' within a sprint. Input: { boardId: number, sprintId?: number }. If sprintId is omitted, uses the latest active sprint.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "boardId": {
+              "type": "number",
+              "description": "The Jira board ID"
+            },
+            "sprintId": {
+              "type": "number",
+              "description": "The Jira sprint ID. If omitted, the latest active sprint is used."
+            }
+          },
+          "required": [
+            "boardId"
+          ]
+        }
+      },
+      {
+        "name": "eng-metrics_storeSprintData",
+        "tags": [
+          "eng-metrics"
+        ],
+        "displayName": "Store Sprint Data to Snowflake",
+        "modelDescription": "Fetches sprint cycle time data from Jira and stores it into a Snowflake table for historical tracking. Input: { boardId: number, sprintId?: number, tableName?: string }. If sprintId is omitted, uses the active sprint. If tableName is omitted, defaults to SPRINT_CYCLE_TIME.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "boardId": {
+              "type": "number",
+              "description": "The Jira board ID"
+            },
+            "sprintId": {
+              "type": "number",
+              "description": "The Jira sprint ID. If omitted, the latest active sprint is used."
+            },
+            "tableName": {
+              "type": "string",
+              "description": "The Snowflake table name to store data in. Defaults to SPRINT_CYCLE_TIME."
+            }
+          },
+          "required": [
+            "boardId"
+          ]
+        }
+      }
+    ],
+    "configuration": {
+      "title": "Engineering Metrics",
+      "properties": {
+        "engMetrics.jira.host": {
+          "type": "string",
+          "default": "",
+          "description": "Jira instance URL (e.g. https://mycompany.atlassian.net)"
+        },
+        "engMetrics.jira.email": {
+          "type": "string",
+          "default": "",
+          "description": "Jira account email for API authentication"
+        },
+        "engMetrics.jira.apiToken": {
+          "type": "string",
+          "default": "",
+          "description": "Jira API token (generate at https://id.atlassian.com/manage-profile/security/api-tokens)"
+        },
+        "engMetrics.snowflake.account": {
+          "type": "string",
+          "default": "",
+          "description": "Snowflake account identifier (e.g. xy12345.us-east-1)"
+        },
+        "engMetrics.snowflake.username": {
+          "type": "string",
+          "default": "",
+          "description": "Snowflake username"
+        },
+        "engMetrics.snowflake.password": {
+          "type": "string",
+          "default": "",
+          "description": "Snowflake password"
+        },
+        "engMetrics.snowflake.database": {
+          "type": "string",
+          "default": "",
+          "description": "Snowflake database name"
+        },
+        "engMetrics.snowflake.schema": {
+          "type": "string",
+          "default": "PUBLIC",
+          "description": "Snowflake schema name (defaults to PUBLIC)"
+        },
+        "engMetrics.snowflake.warehouse": {
+          "type": "string",
+          "default": "",
+          "description": "Snowflake warehouse name"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run esbuild-base -- --minify",
+    "esbuild-base": "esbuild ./src/extension.ts --bundle --outfile=out/main.js --external:vscode --format=cjs --platform=node",
+    "compile": "npm run esbuild-base -- --sourcemap",
+    "watch": "npm run esbuild-base -- --sourcemap --watch",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src/"
+  },
+  "dependencies": {
+    "jira.js": "^5.3.0",
+    "snowflake-sdk": "^2.3.4"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/vscode": "^1.100.0",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.6.0"
+  }
+}
