@@ -28,10 +28,7 @@ export function registerMetricsParticipant(context: vscode.ExtensionContext) {
 					),
 				];
 
-				const chatResponse = await request.model.sendRequest(messages, { tools: [...vscode.lm.tools] }, token);
-				for await (const fragment of chatResponse.text) {
-					stream.markdown(fragment);
-				}
+				await sendRequestWithTools(request.model, messages, stream, token);
 			} catch (err) {
 				handleError(logger, err, stream);
 			}
@@ -51,10 +48,7 @@ export function registerMetricsParticipant(context: vscode.ExtensionContext) {
 					),
 				];
 
-				const chatResponse = await request.model.sendRequest(messages, { tools: [...vscode.lm.tools] }, token);
-				for await (const fragment of chatResponse.text) {
-					stream.markdown(fragment);
-				}
+				await sendRequestWithTools(request.model, messages, stream, token);
 			} catch (err) {
 				handleError(logger, err, stream);
 			}
@@ -74,10 +68,7 @@ export function registerMetricsParticipant(context: vscode.ExtensionContext) {
 					),
 				];
 
-				const chatResponse = await request.model.sendRequest(messages, { tools: [...vscode.lm.tools] }, token);
-				for await (const fragment of chatResponse.text) {
-					stream.markdown(fragment);
-				}
+				await sendRequestWithTools(request.model, messages, stream, token);
 			} catch (err) {
 				handleError(logger, err, stream);
 			}
@@ -103,10 +94,7 @@ You have tools available to fetch real data from GitHub (PR stats), GitLab (MR s
 					vscode.LanguageModelChatMessage.User(request.prompt),
 				];
 
-				const chatResponse = await request.model.sendRequest(messages, { tools: [...vscode.lm.tools] }, token);
-				for await (const fragment of chatResponse.text) {
-					stream.markdown(fragment);
-				}
+				await sendRequestWithTools(request.model, messages, stream, token);
 			} catch (err) {
 				handleError(logger, err, stream);
 			}
@@ -153,6 +141,48 @@ You have tools available to fetch real data from GitHub (PR stats), GitLab (MR s
 			});
 		})
 	);
+}
+
+const MAX_TOOL_ROUNDS = 5;
+
+async function sendRequestWithTools(
+	model: vscode.LanguageModelChat,
+	messages: vscode.LanguageModelChatMessage[],
+	stream: vscode.ChatResponseStream,
+	token: vscode.CancellationToken
+): Promise<void> {
+	const tools = [...vscode.lm.tools];
+	const options: vscode.LanguageModelChatRequestOptions = { tools };
+
+	for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+		const response = await model.sendRequest(messages, options, token);
+
+		// Collect all parts from the response stream
+		const toolCalls: vscode.LanguageModelToolCallPart[] = [];
+		for await (const part of response.stream) {
+			if (part instanceof vscode.LanguageModelTextPart) {
+				stream.markdown(part.value);
+			} else if (part instanceof vscode.LanguageModelToolCallPart) {
+				toolCalls.push(part);
+			}
+		}
+
+		// If no tool calls, the model is done
+		if (toolCalls.length === 0) {
+			return;
+		}
+
+		// Process tool calls and feed results back
+		const assistantParts = toolCalls.map(tc => new vscode.LanguageModelToolCallPart(tc.name, tc.callId, tc.input));
+		messages.push(vscode.LanguageModelChatMessage.Assistant(assistantParts));
+
+		for (const toolCall of toolCalls) {
+			const result = await vscode.lm.invokeTool(toolCall.name, { input: toolCall.input, toolInvocationToken: undefined }, token);
+			messages.push(vscode.LanguageModelChatMessage.User([
+				new vscode.LanguageModelToolResultPart(toolCall.callId, result.content as (vscode.LanguageModelTextPart | vscode.LanguageModelPromptTsxPart)[]),
+			]));
+		}
+	}
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
