@@ -164,6 +164,34 @@
             "comment"
           ]
         }
+      },
+      {
+        "name": "eng-metrics_exportSprintCycleTimeCsv",
+        "tags": [
+          "eng-metrics"
+        ],
+        "displayName": "Export Sprint Cycle Time as CSV",
+        "modelDescription": "Fetches sprint cycle time data from Jira and returns it as CSV text for pasting into a spreadsheet. Supports filtering by squad name (matched against sprint name). Input: { boardId: number, sprintId?: number, squadName?: string }. If squadName is provided, finds the most recent sprint whose name contains that squad name.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "boardId": {
+              "type": "number",
+              "description": "The Jira board ID"
+            },
+            "sprintId": {
+              "type": "number",
+              "description": "The Jira sprint ID. If omitted, uses the active sprint or matches by squadName."
+            },
+            "squadName": {
+              "type": "string",
+              "description": "Filter sprints by name containing this squad name (case-insensitive), e.g. 'Squad Alpha'"
+            }
+          },
+          "required": [
+            "boardId"
+          ]
+        }
       }
     ],
     "configuration": {

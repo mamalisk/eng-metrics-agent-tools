@@ -10,6 +10,7 @@ export function registerMetricsTools(context: vscode.ExtensionContext) {
 		vscode.lm.registerTool('eng-metrics_storeSprintData', new StoreSprintDataTool()),
 		vscode.lm.registerTool('eng-metrics_getMRStats', new GetMRStatsTool()),
 		vscode.lm.registerTool('eng-metrics_addMRComment', new AddMRCommentTool()),
+		vscode.lm.registerTool('eng-metrics_exportSprintCycleTimeCsv', new ExportSprintCycleTimeCsvTool()),
 	);
 }
 
@@ -457,6 +458,7 @@ export class GetMRStatsTool implements vscode.LanguageModelTool<IGetMRStatsParam
 		}
 
 		try {
+			
 			const mrs = await client.MergeRequests.all({
 				projectId,
 				state: 'merged',
@@ -571,6 +573,178 @@ export class AddMRCommentTool implements vscode.LanguageModelTool<IAddMRCommentP
 				title: 'Add Comment to GitLab MR',
 				message: new vscode.MarkdownString(
 					`Post the following comment on MR **!${options.input.mrIid}** in project **${options.input.projectId}**?\n\n> ${options.input.comment}`
+				),
+			},
+		};
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Export Sprint Cycle Time as CSV Tool
+// ---------------------------------------------------------------------------
+
+interface IExportSprintCycleTimeCsvParameters {
+	boardId: number;
+	sprintId?: number;
+	squadName?: string;
+}
+
+function escapeCsvField(value: string): string {
+	if (value.includes(',') || value.includes('"') || value.includes('\n')) {
+		return `"${value.replace(/"/g, '""')}"`;
+	}
+	return value;
+}
+
+export class ExportSprintCycleTimeCsvTool implements vscode.LanguageModelTool<IExportSprintCycleTimeCsvParameters> {
+	async invoke(
+		options: vscode.LanguageModelToolInvocationOptions<IExportSprintCycleTimeCsvParameters>,
+		_token: vscode.CancellationToken
+	) {
+		const { boardId, sprintId, squadName } = options.input;
+
+		let client;
+		try {
+			client = getAgileClient();
+		} catch (err) {
+			return new vscode.LanguageModelToolResult([
+				new vscode.LanguageModelTextPart((err as Error).message),
+			]);
+		}
+
+		try {
+			let resolvedSprintId = sprintId;
+			let sprintName = '';
+
+			if (!resolvedSprintId) {
+				// If squadName provided, search for a matching sprint by name
+				if (squadName) {
+					const sprints = await client.board.getAllSprints({
+						boardId,
+						state: 'active,closed',
+					});
+
+					const lowerSquad = squadName.toLowerCase();
+					const matching = (sprints.values ?? [])
+						.filter((s) => s.name?.toLowerCase().includes(lowerSquad))
+						.sort((a, b) => (b.id ?? 0) - (a.id ?? 0));
+
+					if (matching.length === 0) {
+						return new vscode.LanguageModelToolResult([
+							new vscode.LanguageModelTextPart(`No sprint found matching "${squadName}" on board ${boardId}.`),
+						]);
+					}
+
+					resolvedSprintId = matching[0].id;
+					sprintName = matching[0].name ?? `Sprint ${matching[0].id}`;
+				} else {
+					// Fall back to active sprint
+					const sprints = await client.board.getAllSprints({
+						boardId,
+						state: 'active',
+					});
+
+					const activeSprint = sprints.values?.[0];
+					if (!activeSprint) {
+						return new vscode.LanguageModelToolResult([
+							new vscode.LanguageModelTextPart(`No active sprint found for board ${boardId}. Try providing a sprintId or squadName.`),
+						]);
+					}
+					resolvedSprintId = activeSprint.id;
+					sprintName = activeSprint.name ?? `Sprint ${activeSprint.id}`;
+				}
+			} else {
+				sprintName = `Sprint ${resolvedSprintId}`;
+			}
+
+			// Fetch sprint issues
+			const sprintIssues = await client.board.getBoardIssuesForSprint({
+				boardId,
+				sprintId: resolvedSprintId,
+				fields: ['summary', 'status', 'assignee', 'created', 'resolutiondate', 'statuscategorychangedate'],
+				maxResults: 100,
+			}) as { issues?: JiraIssueBean[] };
+
+			const issues = sprintIssues.issues ?? [];
+
+			const resolvedIssues = issues.filter(
+				(issue) => issue.fields.resolutiondate
+			);
+
+			if (resolvedIssues.length === 0) {
+				return new vscode.LanguageModelToolResult([
+					new vscode.LanguageModelTextPart(`No resolved issues found in ${sprintName} (board ${boardId}). Nothing to export.`),
+				]);
+			}
+
+			// Build CSV
+			const csvRows: string[] = [
+				'Issue Key,Summary,Assignee,Cycle Time (hours),Resolution Date,Sprint',
+			];
+
+			for (const issue of resolvedIssues) {
+				const endTime = new Date(issue.fields.resolutiondate!).getTime();
+				const startTime = issue.fields.statuscategorychangedate
+					? new Date(issue.fields.statuscategorychangedate).getTime()
+					: new Date(issue.fields.created).getTime();
+
+				const hours = (endTime - startTime) / (1000 * 60 * 60);
+				if (hours <= 0) { continue; }
+
+				csvRows.push([
+					escapeCsvField(issue.key),
+					escapeCsvField(issue.fields.summary),
+					escapeCsvField(issue.fields.assignee?.displayName ?? 'Unassigned'),
+					hours.toFixed(1),
+					escapeCsvField(issue.fields.resolutiondate!),
+					escapeCsvField(sprintName),
+				].join(','));
+			}
+
+			const csv = csvRows.join('\n');
+
+			const output = [
+				`## Sprint Cycle Time CSV — ${sprintName}`,
+				``,
+				`${resolvedIssues.length} resolved issues exported.`,
+				``,
+				'```csv',
+				csv,
+				'```',
+			].join('\n');
+
+			return new vscode.LanguageModelToolResult([
+				new vscode.LanguageModelTextPart(output),
+			]);
+		} catch (err) {
+			return new vscode.LanguageModelToolResult([
+				new vscode.LanguageModelTextPart(`Error exporting sprint data as CSV: ${(err as Error).message}`),
+			]);
+		}
+	}
+
+	async prepareInvocation(
+		options: vscode.LanguageModelToolInvocationPrepareOptions<IExportSprintCycleTimeCsvParameters>,
+		_token: vscode.CancellationToken
+	) {
+		const parts: string[] = [`board ${options.input.boardId}`];
+		if (options.input.sprintId) {
+			parts.push(`sprint ${options.input.sprintId}`);
+		}
+		if (options.input.squadName) {
+			parts.push(`squad "${options.input.squadName}"`);
+		}
+		if (!options.input.sprintId && !options.input.squadName) {
+			parts.push('(active sprint)');
+		}
+		const label = parts.join(', ');
+
+		return {
+			invocationMessage: `Exporting sprint cycle time CSV for ${label}`,
+			confirmationMessages: {
+				title: 'Export Sprint Cycle Time as CSV',
+				message: new vscode.MarkdownString(
+					`Fetch sprint cycle time data from Jira for **${label}** and output as CSV?`
 				),
 			},
 		};

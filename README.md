@@ -64,6 +64,7 @@ When you ask data-driven questions, the model will automatically invoke the appr
 | **Get GitLab MR Statistics** | Asking about a GitLab project's MR data | `@metrics what's the MR cycle time for project 12345?` |
 | **Add GitLab MR Comment** | Asking to comment on a merge request | `@metrics add a comment to MR !42 in project 12345 saying "looks good"` |
 | **Get Jira Sprint Cycle Time** | Asking about sprint metrics | `@metrics what's the cycle time for board 42?` |
+| **Export Sprint Cycle Time CSV** | Asking for spreadsheet-ready data | `@metrics export cycle time CSV for Squad Alpha on board 42` |
 | **Store Sprint Data to Snowflake** | Asking to persist sprint data | `@metrics store the sprint data from board 42 to snowflake` |
 
 ## Configuration
