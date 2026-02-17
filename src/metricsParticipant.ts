@@ -98,7 +98,7 @@ export function registerMetricsParticipant(context: vscode.ExtensionContext) {
 - DORA metrics (lead time, deployment frequency, change failure rate, MTTR)
 - Developer productivity signals
 
-You have tools available to fetch real data from GitHub (PR stats) and Jira (sprint cycle time), and to store sprint data into Snowflake for historical tracking. Provide data-driven, actionable advice.`
+You have tools available to fetch real data from GitHub (PR stats), GitLab (MR stats and comments), and Jira (sprint cycle time), and to store sprint data into Snowflake for historical tracking. Provide data-driven, actionable advice.`
 					),
 					vscode.LanguageModelChatMessage.User(request.prompt),
 				];

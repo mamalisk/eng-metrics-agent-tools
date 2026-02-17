@@ -114,11 +114,71 @@
             "boardId"
           ]
         }
+      },
+      {
+        "name": "eng-metrics_getMRStats",
+        "tags": [
+          "eng-metrics"
+        ],
+        "displayName": "Get GitLab MR Statistics",
+        "modelDescription": "Retrieves merge request statistics (merged count, avg cycle time) for a GitLab project. Input: { projectId: string | number }. The projectId can be a numeric ID or a path like 'mygroup/myproject'.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "projectId": {
+              "type": ["string", "number"],
+              "description": "The GitLab project ID or path (e.g. 123 or 'mygroup/myproject')"
+            }
+          },
+          "required": [
+            "projectId"
+          ]
+        }
+      },
+      {
+        "name": "eng-metrics_addMRComment",
+        "tags": [
+          "eng-metrics"
+        ],
+        "displayName": "Add GitLab MR Comment",
+        "modelDescription": "Adds a comment (note) to a GitLab merge request. Input: { projectId: string | number, mrIid: number, comment: string }. Use this to post feedback, cycle time summaries, or review notes directly on a merge request.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "projectId": {
+              "type": ["string", "number"],
+              "description": "The GitLab project ID or path"
+            },
+            "mrIid": {
+              "type": "number",
+              "description": "The merge request IID (internal ID within the project)"
+            },
+            "comment": {
+              "type": "string",
+              "description": "The comment text to post on the merge request"
+            }
+          },
+          "required": [
+            "projectId",
+            "mrIid",
+            "comment"
+          ]
+        }
       }
     ],
     "configuration": {
       "title": "Engineering Metrics",
       "properties": {
+        "engMetrics.gitlab.host": {
+          "type": "string",
+          "default": "https://gitlab.com",
+          "description": "GitLab instance URL (e.g. https://gitlab.com or https://gitlab.mycompany.com)"
+        },
+        "engMetrics.gitlab.token": {
+          "type": "string",
+          "default": "",
+          "description": "GitLab personal access token (scopes: read_api for stats, api for comments)"
+        },
         "engMetrics.jira.host": {
           "type": "string",
           "default": "",
@@ -176,6 +236,7 @@
     "lint": "eslint src/"
   },
   "dependencies": {
+    "@gitbeaker/rest": "^43.8.0",
     "jira.js": "^5.3.0",
     "snowflake-sdk": "^2.3.4"
   },

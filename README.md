@@ -1,6 +1,6 @@
 # Engineering Metrics - Copilot Chat Extension
 
-A VS Code extension that adds a GitHub Copilot Chat participant (`@metrics`) for engineering metrics. It provides conversational access to PR cycle time, code review throughput, deployment frequency, and Jira sprint cycle time — backed by tools that fetch real data from GitHub and Jira, and optionally store it in Snowflake.
+A VS Code extension that adds a GitHub Copilot Chat participant (`@metrics`) for engineering metrics. It provides conversational access to PR cycle time, MR cycle time, code review throughput, deployment frequency, and Jira sprint cycle time — backed by tools that fetch real data from GitHub, GitLab, and Jira, and optionally store it in Snowflake.
 
 ## Architecture
 
@@ -13,7 +13,8 @@ The extension has two layers:
 src/
   extension.ts          # Entry point — registers participant + tools
   metricsParticipant.ts # Chat participant handler (@metrics)
-  tools.ts              # Tool implementations (GitHub, Jira, Snowflake)
+  tools.ts              # Tool implementations (GitHub, GitLab, Jira, Snowflake)
+  gitlabClient.ts       # GitLab API client helper
   jiraClient.ts         # Jira API client helper
   snowflakeClient.ts    # Snowflake connection helper
 ```
@@ -59,7 +60,9 @@ When you ask data-driven questions, the model will automatically invoke the appr
 
 | Tool | Triggered by | Example prompt |
 |------|-------------|----------------|
-| **Get PR Statistics** | Asking about a specific repo's PR data | `@metrics what's the PR cycle time for myorg/myrepo?` |
+| **Get PR Statistics** | Asking about a specific GitHub repo's PR data | `@metrics what's the PR cycle time for myorg/myrepo?` |
+| **Get GitLab MR Statistics** | Asking about a GitLab project's MR data | `@metrics what's the MR cycle time for project 12345?` |
+| **Add GitLab MR Comment** | Asking to comment on a merge request | `@metrics add a comment to MR !42 in project 12345 saying "looks good"` |
 | **Get Jira Sprint Cycle Time** | Asking about sprint metrics | `@metrics what's the cycle time for board 42?` |
 | **Store Sprint Data to Snowflake** | Asking to persist sprint data | `@metrics store the sprint data from board 42 to snowflake` |
 
@@ -70,6 +73,15 @@ Configure via VS Code Settings (`Ctrl+,`) or in `settings.json`.
 ### GitHub
 
 GitHub authentication is handled via VS Code's built-in GitHub authentication provider. You'll be prompted to sign in when a GitHub tool is first invoked.
+
+### GitLab
+
+Required for MR stats and MR comment tools.
+
+| Setting | Description |
+|---------|-------------|
+| `engMetrics.gitlab.host` | GitLab instance URL (defaults to `https://gitlab.com`) |
+| `engMetrics.gitlab.token` | GitLab personal access token (scopes: `read_api` for stats, `api` for comments) |
 
 ### Jira
 
@@ -98,6 +110,8 @@ Example `settings.json`:
 
 ```json
 {
+  "engMetrics.gitlab.host": "https://gitlab.com",
+  "engMetrics.gitlab.token": "your-gitlab-token",
   "engMetrics.jira.host": "https://mycompany.atlassian.net",
   "engMetrics.jira.email": "you@company.com",
   "engMetrics.jira.apiToken": "your-jira-api-token",

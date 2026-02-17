@@ -1,12 +1,15 @@
 import * as vscode from 'vscode';
 import { getAgileClient } from './jiraClient';
 import { getSnowflakeConnection, executeStatement } from './snowflakeClient';
+import { getGitLabClient } from './gitlabClient';
 
 export function registerMetricsTools(context: vscode.ExtensionContext) {
 	context.subscriptions.push(
 		vscode.lm.registerTool('eng-metrics_getPRStats', new GetPRStatsTool()),
 		vscode.lm.registerTool('eng-metrics_getSprintCycleTime', new GetSprintCycleTimeTool()),
 		vscode.lm.registerTool('eng-metrics_storeSprintData', new StoreSprintDataTool()),
+		vscode.lm.registerTool('eng-metrics_getMRStats', new GetMRStatsTool()),
+		vscode.lm.registerTool('eng-metrics_addMRComment', new AddMRCommentTool()),
 	);
 }
 
@@ -423,6 +426,151 @@ export class StoreSprintDataTool implements vscode.LanguageModelTool<IStoreSprin
 				title: 'Store Sprint Data to Snowflake',
 				message: new vscode.MarkdownString(
 					`Fetch sprint data from Jira (**${sprintLabel}**) and store it in Snowflake table **${table}**?`
+				),
+			},
+		};
+	}
+}
+
+// ---------------------------------------------------------------------------
+// GitLab MR Stats Tool
+// ---------------------------------------------------------------------------
+
+interface IGetMRStatsParameters {
+	projectId: string | number;
+}
+
+export class GetMRStatsTool implements vscode.LanguageModelTool<IGetMRStatsParameters> {
+	async invoke(
+		options: vscode.LanguageModelToolInvocationOptions<IGetMRStatsParameters>,
+		_token: vscode.CancellationToken
+	) {
+		const { projectId } = options.input;
+
+		let client;
+		try {
+			client = getGitLabClient();
+		} catch (err) {
+			return new vscode.LanguageModelToolResult([
+				new vscode.LanguageModelTextPart((err as Error).message),
+			]);
+		}
+
+		try {
+			const mrs = await client.MergeRequests.all({
+				projectId,
+				state: 'merged',
+				perPage: 30,
+				orderBy: 'updated_at',
+			});
+
+			const cycleTimes = mrs.map((mr) => {
+				const created = new Date(mr.created_at as string).getTime();
+				const merged = new Date(mr.merged_at as string).getTime();
+				return (merged - created) / (1000 * 60 * 60);
+			});
+
+			const avgCycleTime = cycleTimes.length > 0
+				? cycleTimes.reduce((a, b) => a + b, 0) / cycleTimes.length
+				: 0;
+
+			const summary = [
+				`## MR Statistics for project ${projectId}`,
+				``,
+				`- **Merged MRs fetched:** ${mrs.length}`,
+				`- **Average cycle time (open → merge):** ${avgCycleTime.toFixed(1)} hours`,
+				``,
+				`### Recent Merged MRs`,
+				...mrs.slice(0, 10).map((mr) => {
+					const hours = ((new Date(mr.merged_at as string).getTime() - new Date(mr.created_at as string).getTime()) / (1000 * 60 * 60)).toFixed(1);
+					return `- !${mr.iid} "${mr.title}" by @${mr.author?.username ?? 'unknown'} — ${hours}h cycle time`;
+				}),
+			].join('\n');
+
+			return new vscode.LanguageModelToolResult([
+				new vscode.LanguageModelTextPart(summary),
+			]);
+		} catch (err) {
+			return new vscode.LanguageModelToolResult([
+				new vscode.LanguageModelTextPart(`Error fetching GitLab MR stats: ${(err as Error).message}`),
+			]);
+		}
+	}
+
+	async prepareInvocation(
+		options: vscode.LanguageModelToolInvocationPrepareOptions<IGetMRStatsParameters>,
+		_token: vscode.CancellationToken
+	) {
+		return {
+			invocationMessage: `Fetching MR stats for project ${options.input.projectId}`,
+			confirmationMessages: {
+				title: 'Fetch GitLab MR Statistics',
+				message: new vscode.MarkdownString(
+					`Fetch merge request statistics from GitLab for project **${options.input.projectId}**?`
+				),
+			},
+		};
+	}
+}
+
+// ---------------------------------------------------------------------------
+// GitLab Add MR Comment Tool
+// ---------------------------------------------------------------------------
+
+interface IAddMRCommentParameters {
+	projectId: string | number;
+	mrIid: number;
+	comment: string;
+}
+
+export class AddMRCommentTool implements vscode.LanguageModelTool<IAddMRCommentParameters> {
+	async invoke(
+		options: vscode.LanguageModelToolInvocationOptions<IAddMRCommentParameters>,
+		_token: vscode.CancellationToken
+	) {
+		const { projectId, mrIid, comment } = options.input;
+
+		let client;
+		try {
+			client = getGitLabClient();
+		} catch (err) {
+			return new vscode.LanguageModelToolResult([
+				new vscode.LanguageModelTextPart((err as Error).message),
+			]);
+		}
+
+		try {
+			const note = await client.MergeRequestNotes.create(projectId, mrIid, comment);
+
+			const summary = [
+				`## Comment Added to MR !${mrIid}`,
+				``,
+				`- **Project:** ${projectId}`,
+				`- **MR:** !${mrIid}`,
+				`- **Note ID:** ${note.id}`,
+				`- **Comment:** ${comment}`,
+			].join('\n');
+
+			return new vscode.LanguageModelToolResult([
+				new vscode.LanguageModelTextPart(summary),
+			]);
+		} catch (err) {
+			return new vscode.LanguageModelToolResult([
+				new vscode.LanguageModelTextPart(`Error adding comment to MR: ${(err as Error).message}`),
+			]);
+		}
+	}
+
+	async prepareInvocation(
+		options: vscode.LanguageModelToolInvocationPrepareOptions<IAddMRCommentParameters>,
+		_token: vscode.CancellationToken
+	) {
+		return {
+			invocationMessage: `Adding comment to MR !${options.input.mrIid} in project ${options.input.projectId}`,
+			confirmationMessages: {
+				title: 'Add Comment to GitLab MR',
+				message: new vscode.MarkdownString(
+					`Post the following comment on MR **!${options.input.mrIid}** in project **${options.input.projectId}**?\n\n> ${options.input.comment}`
 				),
 			},
 		};
