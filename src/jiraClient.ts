@@ -22,6 +22,7 @@ function getJiraConfig() {
 
 export function getAgileClient(): AgileClient {
 	const { host, email, apiToken } = getJiraConfig();
+	console.log(`[eng-metrics] Jira client: host=${host}, email=${email}, token=${apiToken ? apiToken.substring(0, 4) + '...' : '(empty)'}`);
 	return new AgileClient({
 		host,
 		authentication: {

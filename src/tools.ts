@@ -247,6 +247,7 @@ export class GetSprintCycleTimeTool implements vscode.LanguageModelTool<IGetSpri
 				new vscode.LanguageModelTextPart(summary),
 			]);
 		} catch (err) {
+			console.error('[eng-metrics] Jira sprint error:', err);
 			return new vscode.LanguageModelToolResult([
 				new vscode.LanguageModelTextPart(`Error fetching Jira sprint data: ${(err as Error).message}`),
 			]);
@@ -493,6 +494,7 @@ export class GetMRStatsTool implements vscode.LanguageModelTool<IGetMRStatsParam
 				new vscode.LanguageModelTextPart(summary),
 			]);
 		} catch (err) {
+			console.error('[eng-metrics] GitLab MR stats error:', err);
 			return new vscode.LanguageModelToolResult([
 				new vscode.LanguageModelTextPart(`Error fetching GitLab MR stats: ${(err as Error).message}`),
 			]);
