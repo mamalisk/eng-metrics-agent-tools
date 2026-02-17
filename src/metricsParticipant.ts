@@ -28,7 +28,7 @@ export function registerMetricsParticipant(context: vscode.ExtensionContext) {
 					),
 				];
 
-				await sendRequestWithTools(request.model, messages, stream, token);
+				await sendRequestWithTools(request.model, messages, stream, token, request.toolInvocationToken);
 			} catch (err) {
 				handleError(logger, err, stream);
 			}
@@ -48,7 +48,7 @@ export function registerMetricsParticipant(context: vscode.ExtensionContext) {
 					),
 				];
 
-				await sendRequestWithTools(request.model, messages, stream, token);
+				await sendRequestWithTools(request.model, messages, stream, token, request.toolInvocationToken);
 			} catch (err) {
 				handleError(logger, err, stream);
 			}
@@ -68,7 +68,7 @@ export function registerMetricsParticipant(context: vscode.ExtensionContext) {
 					),
 				];
 
-				await sendRequestWithTools(request.model, messages, stream, token);
+				await sendRequestWithTools(request.model, messages, stream, token, request.toolInvocationToken);
 			} catch (err) {
 				handleError(logger, err, stream);
 			}
@@ -94,7 +94,7 @@ You have tools available to fetch real data from GitHub (PR stats), GitLab (MR s
 					vscode.LanguageModelChatMessage.User(request.prompt),
 				];
 
-				await sendRequestWithTools(request.model, messages, stream, token);
+				await sendRequestWithTools(request.model, messages, stream, token, request.toolInvocationToken);
 			} catch (err) {
 				handleError(logger, err, stream);
 			}
@@ -149,7 +149,8 @@ async function sendRequestWithTools(
 	model: vscode.LanguageModelChat,
 	messages: vscode.LanguageModelChatMessage[],
 	stream: vscode.ChatResponseStream,
-	token: vscode.CancellationToken
+	token: vscode.CancellationToken,
+	toolInvocationToken: vscode.ChatParticipantToolToken | undefined
 ): Promise<void> {
 	const tools = [...vscode.lm.tools];
 	const options: vscode.LanguageModelChatRequestOptions = { tools };
@@ -177,7 +178,8 @@ async function sendRequestWithTools(
 		messages.push(vscode.LanguageModelChatMessage.Assistant(assistantParts));
 
 		for (const toolCall of toolCalls) {
-			const result = await vscode.lm.invokeTool(toolCall.name, { input: toolCall.input, toolInvocationToken: undefined }, token);
+			console.log(`[eng-metrics] Invoking tool: ${toolCall.name}`, JSON.stringify(toolCall.input));
+			const result = await vscode.lm.invokeTool(toolCall.name, { input: toolCall.input, toolInvocationToken }, token);
 			messages.push(vscode.LanguageModelChatMessage.User([
 				new vscode.LanguageModelToolResultPart(toolCall.callId, result.content as (vscode.LanguageModelTextPart | vscode.LanguageModelPromptTsxPart)[]),
 			]));
