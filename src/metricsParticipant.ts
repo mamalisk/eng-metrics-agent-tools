@@ -28,7 +28,7 @@ export function registerMetricsParticipant(context: vscode.ExtensionContext) {
 					),
 				];
 
-				const chatResponse = await request.model.sendRequest(messages, {}, token);
+				const chatResponse = await request.model.sendRequest(messages, { tools: [...vscode.lm.tools] }, token);
 				for await (const fragment of chatResponse.text) {
 					stream.markdown(fragment);
 				}
@@ -51,7 +51,7 @@ export function registerMetricsParticipant(context: vscode.ExtensionContext) {
 					),
 				];
 
-				const chatResponse = await request.model.sendRequest(messages, {}, token);
+				const chatResponse = await request.model.sendRequest(messages, { tools: [...vscode.lm.tools] }, token);
 				for await (const fragment of chatResponse.text) {
 					stream.markdown(fragment);
 				}
@@ -74,7 +74,7 @@ export function registerMetricsParticipant(context: vscode.ExtensionContext) {
 					),
 				];
 
-				const chatResponse = await request.model.sendRequest(messages, {}, token);
+				const chatResponse = await request.model.sendRequest(messages, { tools: [...vscode.lm.tools] }, token);
 				for await (const fragment of chatResponse.text) {
 					stream.markdown(fragment);
 				}
@@ -103,7 +103,7 @@ You have tools available to fetch real data from GitHub (PR stats), GitLab (MR s
 					vscode.LanguageModelChatMessage.User(request.prompt),
 				];
 
-				const chatResponse = await request.model.sendRequest(messages, {}, token);
+				const chatResponse = await request.model.sendRequest(messages, { tools: [...vscode.lm.tools] }, token);
 				for await (const fragment of chatResponse.text) {
 					stream.markdown(fragment);
 				}
